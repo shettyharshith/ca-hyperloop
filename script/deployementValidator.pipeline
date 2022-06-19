@@ -1,0 +1,236 @@
+@Library(['hyperloop-pipeline-library','af-hyperloop-pipeline-library@ca_develop']) _
+import java.text.SimpleDateFormat
+import groovy.transform.Field
+import org.apache.commons.lang3.text.StrSubstitutor
+/**
+ * This pipeline supports the execution of service test jobs triggered by CD orchestrate job.
+ * @author achatterjee
+ */
+@Field def componentName=""
+@Field def e2eJobs=""
+@Field def envs=""
+@Field def releaseId=""
+@Field def notification_type=""
+@Field def slack_channel=""
+@Field def emailPreference=""
+@Field def slackPreference=""
+@Field def notify_after=""
+@Field def userName=""
+@Field def email=""
+@Field def s3Upload="aws s3 cp htmlfile s3://sie-nav-cicd-jenkins-output-pdx/sie-care-reports/"
+@Field def release_version=""
+@Field def testType=""
+@Field def gitRepo=""
+@Field def projectDir=""
+@Field def healthCheck=""
+@Field def modifyData=""
+@Field def line=""
+@Field String[] e2eRegressionJobArray
+@Field String[] environmentArray
+@Field def buildResultMap = [:]
+String[] params =  InputParameters.split(";")
+@Field def reportPath=""
+@Field def customTestJobsFilePath=""
+@Field def branch=""
+@Field String reportTemplate
+@Field StringBuffer reportDataAllRow = new StringBuffer()
+@Field StringBuffer buildResultAllRow = new StringBuffer()
+@Field String[] notification_type_List= {""}
+@Field def continueExecution=false
+@Field includeSmokeExecution=false
+@Field includeServiceRegressionExecution=false
+@Field includeE2EExecution=true
+@Field includeHealthCheckExecution=false
+@Field includePerformanceTests=false
+@Field includeClientTests=true
+@Field includeCustomTests=false
+@Field includeNone=false
+@Field includeAll=false
+@Field def Map<String,String> parameterMap = new LinkedHashMap<String, String>()
+@Field def Map<String,String> smokeMap = new LinkedHashMap<String, String>()
+@Field def Map<String,String> perfMap = new LinkedHashMap<String, String>()
+@Field def Map<String,String> customMap = new LinkedHashMap<String, String>()
+@Field def Map<String,String> clientMap = new LinkedHashMap<String, String>()
+@Field def Map<String,String> regressionMap = new LinkedHashMap<String, String>()
+@Field def Map<String,String> e2eMap = new LinkedHashMap<String, String>()
+@Field def Map<String,String> dataMap = new LinkedHashMap<String, String>()
+@Field def userDataYML;
+@Field def customYMLTestConfig
+@Field def ignoreSmoke=false
+@Field def skipRegression=false
+@Field def skipPerformance=false
+@Field def skipCustom=false
+@Field def skipE2e=false
+@Field def ymlOldSchema=false
+@Field def runRegressionInParallel=false
+
+//This variable is used to dynamically generate the code required for parallel execution
+@Field def dynamicCodeMap = [:]
+//In case if user dosen't set any callback notification preference then by default end of all execution notification will be sent.
+@Field notificationPreference=false
+// this is the template for result row for each job execution, and this will be dynamically populated end of each job execution
+@Field def stageHealthCheck="Healthcheck"
+@Field def stageServiceSmoke="ServiceSmokeJob"
+@Field def stageRegressionTests="RegressionTests"
+@Field def stageServiceRegression="ServiceRegression"
+@Field def performenceTest="PerformenceTest"
+@Field def stageCustomTests="CustomTests"
+@Field def stageE2ESmoke="E2ESmoke"
+@Field List<String> jobSearchResultArray=new ArrayList<String>()
+@Field def folders=[]
+pipeline {
+	agent { label pipeLineConstants.JENKINS_EXECUTOR }
+	stages {
+		stage (Init){
+
+			steps {
+				script{
+					pipeLineStages.initStage(this,params)
+				}
+			}
+
+		}
+		stage (FirstValidations) {
+			parallel {
+				stage(Healthcheck) {
+
+					steps {
+						script {
+							pipeLineStages.healthCheckStage(this, params)
+						}
+					}
+
+					post {
+						always {
+							script {
+								def pursue = currentBuild.result.toString().trim().equalsIgnoreCase(pipeLineConstants.SUCCESS) || healthCheck.toString().trim().equalsIgnoreCase(pipeLineConstants.SKIP)
+								switch (true) {
+									case (pursue):
+										continueExecution = true
+										break
+									default:
+										continueExecution = false
+										break
+								}
+								notificationUtil.sendCallBackNotification(pipeLineConstants.NOTIFY_AFTER_HEALTH, this)
+							}
+						}
+					}
+				}
+				stage(ClientTests) {
+					steps {
+						script{
+							pipeLineStages.clientStage(this)
+						}
+					}
+					post {
+						always {
+							script{  notificationUtil.sendCallBackNotification(pipeLineConstants.NOTIFY_AFTER_CLIENT_TEST,this) }
+						}
+					}
+				}
+			}
+		}
+		stage  (ServiceSmokeJob){
+			steps {
+				script{ pipeLineStages.smokeStage(this) }
+			}
+			post {
+				always {
+					script{
+						def pursue = currentBuild.result.toString().trim().equalsIgnoreCase(pipeLineConstants.SUCCESS)&&!smokeMap.isEmpty()
+						switch(true) {
+							case (pursue):
+								continueExecution=true
+								break
+							case (ignoreSmoke):
+								continueExecution=true
+								break
+							default:
+								continueExecution=false
+								break
+						}
+						notificationUtil.sendCallBackNotification(pipeLineConstants.NOTIFY_AFTER_SMOKE,this)
+					}
+				}
+			}
+		}
+
+		stage(RegressionTests) {
+			parallel {
+
+				stage(ServiceRegression) {
+					steps {
+						script{
+							pipeLineStages.regressionStage(this,params)
+						}
+					}
+					post {
+						always {
+							script{  notificationUtil.sendCallBackNotification(pipeLineConstants.NOTIFY_AFTER_SERV_RGR,this) }
+						}
+					}
+				}
+				stage(E2ESmoke) {
+					steps {
+						script{ pipeLineStages.e2eStage(this) }
+					}
+					post {
+
+						always {
+							script{ notificationUtil.sendCallBackNotification(pipeLineConstants.NOTIFY_AFTER_E2E,this) }
+						}
+					}
+				}
+				stage(PerformanceTest) {
+					steps {
+						script{ pipeLineStages.perfStage(this) }
+					}
+					post {
+
+						always {
+							script{ notificationUtil.sendCallBackNotification(pipeLineConstants.NOTIFY_AFTER_PERF_TEST,this) }
+						}
+					}
+				}
+				stage(CustomTest) {
+					steps {
+						script{ pipeLineStages.customStage(this) }
+					}
+					post {
+
+						always {
+							script{ notificationUtil.sendCallBackNotification(pipeLineConstants.NOTIFY_AFTER_CUSTOM_TEST,this) }
+						}
+					}
+				}
+			}
+		}
+	}
+	post {
+		always {
+			script {
+				reportUtil.bucketUpload(this)
+				for (String jobname : jobSearchResultArray) {
+					ansiColor('xterm') {
+						echo "\033[1;91m" + jobname + "\033[1;91m"
+						currentBuild.result = pipeLineConstants.UNSTABLE
+					}
+				}
+				if(!includeNone)
+				{
+					notificationUtil.notifyExecutionStatus(this)
+				}
+				if(!notificationPreference && !includeNone)
+				{
+					sh "curl -X POST ${callback} -d ${currentBuild.result}"
+				}
+			}
+		}
+		aborted{ script{  sh "curl -X POST ${callback} -d ${pipeLineConstants.ABORTED}" } }
+
+		failure{
+			script{ sh "curl -X POST ${callback} -d ${pipeLineConstants.FAILURE}" }
+		}
+	}
+}
