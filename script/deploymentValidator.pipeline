@@ -1,4 +1,4 @@
-@Library(['af-hyperloop-pipeline-library@ca-develop']) _
+@Library(['af-hyperloop-pipeline-library@ca_develop']) _
 import java.text.SimpleDateFormat
 import groovy.transform.Field
 import org.apache.commons.lang3.text.StrSubstitutor
