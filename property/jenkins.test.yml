@@ -1,0 +1,48 @@
+#common_properties
+Common:
+  NotificationType:
+    Slack:
+      SlackChannel: af-client-testing
+  Test: all
+  EdgeToEnd:
+    ModifyData: Override
+    E2E_Smoke_Tests:
+      JobParameter:
+        ArtifactVersion: 23.4.AWS-SNAPSHOT
+        Line: [environment]
+# all properties required to run jobs on d1 line.
+D1:
+ HealthCheck: skip
+ ServiceSmoke: skip
+ ServiceRegression: skip
+ EdgeToEnd: skip
+ ServicePerformance: skip
+# all properties required to run jobs on q1 line.
+Q1:
+ HealthCheck: skip
+ ServiceSmoke: skip
+ ServiceRegression: skip
+ ServicePerformance: skip
+ EdgeToEnd:
+ # all properties required to run jobs on q2 line.
+Q2:
+ HealthCheck: skip
+ ServiceSmoke: skip
+ ServiceRegression: skip
+ ServicePerformance: skip
+ EdgeToEnd:
+# all properties required to run jobs on e1 line.
+E1:
+ HealthCheck: skip
+ ClientTestJobs:
+   E1_Kamaji:
+     JobParameter: none
+   API-Status-SIE:
+     JobParameter: none
+ ServiceSmoke:
+   Account_Smoke_Test_CARE: 
+     JobParameter: 
+       none
+ ServiceRegression: skip
+ ServicePerformance: skip
+ EdgeToEnd:
