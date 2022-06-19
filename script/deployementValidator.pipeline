@@ -1,10 +1,10 @@
-@Library(['hyperloop-pipeline-library','af-hyperloop-pipeline-library@ca_develop']) _
+@Library(['af-hyperloop-pipeline-library@ca_develop']) _
 import java.text.SimpleDateFormat
 import groovy.transform.Field
 import org.apache.commons.lang3.text.StrSubstitutor
 /**
  * This pipeline supports the execution of service test jobs triggered by CD orchestrate job.
- * @author achatterjee
+ * @author Harshith
  */
 @Field def componentName=""
 @Field def e2eJobs=""
